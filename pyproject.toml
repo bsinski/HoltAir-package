@@ -3,9 +3,11 @@ requires = ["hatchling","PyPDF2","hatchling","pdf2image","Pillow","numpy","pytes
 build-backend = "hatchling.build"
 [project]
 name = "holtair"
-version = "0.0.3"
+version = "0.0.4"
 authors = [
-  { name="Bartosz Siński", email="author@example.com" },
+    {name="Szymon Szmajdziński"},
+    { name="Bartosz Siński" },
+    {name="Jan Smoleń"}
 ]
 description = "Package for reading data from Holter blood pressure test results."
 readme = "README.md"
