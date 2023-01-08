@@ -1,18 +1,31 @@
 import pandas as pd
 import numpy as np
 import datetime
-from .utils import transform_to_time
-from .exceptions import InsufficientObesrvationsException
+from ._exceptions import InsufficientObesrvationsException
 
 class ExamStatistics:
+    '''
+    contains dataframes with calculated statistics from exam data for day, night, joined and dictionary with pb_load values
+    :param basic_overall: dataframe with basic statistics for day and night
+    :param basic_day: dataframe with statistics for a  day
+    :param basic_night: dataframe with statistics for a night
+    :param bp_loadL dictionary with pb_load values for day, night and joined
+    '''
+
     def __init__(self,df):
         self.basic_overall = join_overall_statistics(df)
         self.basic_day = get_statistics(df,'day')
         self.basic_night = get_statistics(df,'night')
         self.bp_load = bp_load_dictionary(df)
 
-# wyliczanie podstawowych statystyk o wybranej porze dnia
+
 def get_statistics(dataframe, period):
+    '''
+        calculates basic statistics such sa mean,std,min and max for different blood pressure indicators
+        :param dataframe: dataframe with blood pressure measurements
+        :param period: parameter for choosing if statistics should be calculated for day, night or both
+        :return: dataframe with calculated basic statistics
+        '''
     df = dataframe.copy()
     df['Czas'] = transform_to_time(df['Czas'])
     df_statistics = pd.DataFrame(columns=['Measure', 'Mean', 'STD', 'Min', 'Max'])
@@ -26,14 +39,18 @@ def get_statistics(dataframe, period):
     for measures in analysis_objects:
         analysis_col = df[measures].astype('int').tolist()
         newrow = [measures, np.mean(analysis_col), np.std(analysis_col), np.min(analysis_col), np.max(analysis_col)]
-        df_statistics = df_statistics.append(pd.DataFrame([newrow], columns=['Measure', 'Mean', 'STD', 'Min', 'Max']),
-                                       ignore_index=True)
+        df_statistics = pd.concat([df_statistics,pd.DataFrame([newrow], columns=['Measure', 'Mean', 'STD', 'Min', 'Max'])],
+                                       ignore_index=True,axis=0)
     return df_statistics
 
 
-# dodanie kolumny z wartością nocnego spadku ciśnienia dla ramki danych z zarówno dniem i nocą
-# nie wyliczamy wartości dla ciśnienia tętna i częstości pracy serca
 def get_drop(dataframe):
+    '''
+    adds a column with the value of night time pressure drop for a data frame with both day and night.
+    we do not calculate values for pulse pressure and heart rate
+    :param dataframe: dataframe with blood pressure measurements for both day and night values
+    :return: dataframe column with blood pressure drop
+    '''
     df = dataframe.copy()
     df_day = get_statistics(dataframe,'day')
     df_night = get_statistics(dataframe,'night')
@@ -47,9 +64,13 @@ def get_drop(dataframe):
     return df_drop
 
 
-# wyliczanie porannego spadku ciśnienia jako różnica pomiędzy średnim ciśnieniem w okresie czterech godzin przed pobódką,
-# a średnim cisnieniem w okresie czterech godzin po przebudzeniu
 def get_morning_surge(dataframe):
+    '''
+    calculating the morning surge as the difference between the average pressure over a four-hour period before
+    waking up and the average pressure over a period of four hours after waking up
+    :param dataframe: dataframe with blood pressure measurements for both day and night values
+    :return: column with morning surge values
+    '''
     df = dataframe.copy()
     df['Czas'] = transform_to_time(df['Czas'])
     wakeup_time = df[df['Sleep']==0]['Czas'].min().to_pydatetime()
@@ -63,15 +84,25 @@ def get_morning_surge(dataframe):
     df_surge =  pd.DataFrame({"Morning surge":surge})
     return df_surge
 
-# łączenie wynikowych ramek danych
+
 def join_overall_statistics(dataframe):
+    '''
+    joins dataframes with basic statistics for day and night and appends columsn with morning surge and drop values
+    :param dataframe: dataframe with blood pressure measurements for both day and night values
+    :return: concated dataframe
+    '''
     df_statistics = get_statistics(dataframe,'all')
     df_drop = get_drop(dataframe)
     df_surge = get_morning_surge(dataframe)
     return pd.concat([df_statistics,df_drop,df_surge],axis=1)
 
-# wyliczanie wartości pb load, która jestodsetkiem pomiarów powyżej określonych wartości progowych
+
 def bp_load_dictionary(dataframe):
+    '''
+    calculates  the pb load value, which is the percentage of measurements above certain threshold values
+    :param dataframe: dataframe with blood pressure measurements for both day and night values
+    :return: dictionary with bp load values for night, day and both
+    '''
     df = dataframe.copy()
     n = len(df)
     bp_all = len(df[(df['Sys'].astype('int') >= 130) | (df['Dia'].astype('int') >= 80)])/n
@@ -80,3 +111,20 @@ def bp_load_dictionary(dataframe):
     df_night = df[df['Sleep']==1]
     bp_night = len(df_night[(df_night['Sys'].astype('int') >= 120) | (df_night['Dia'].astype('int') >= 70)])/n
     return {"24hours":bp_all,"day":bp_day,"night":bp_night}
+
+
+def transform_to_time(column):
+    '''
+    takes the time column and adds the 01-01-1900 date and creates datetime column, next it adds one day to the
+    observations that are after 24:00.
+    :param column: column with time of the blood pressure measurement
+    :return: list with datetime observations
+    '''
+    list_with_time = pd.to_datetime(column,format='%H:%M').tolist()
+    days_to_add = datetime.timedelta(days=0)
+    for i in range(len(list_with_time)):
+        if list_with_time[i] < list_with_time[i-1]:
+            days_to_add = datetime.timedelta(days=1)
+        newtime = list_with_time[i] + days_to_add
+        list_with_time[i] = newtime.to_pydatetime()
+    return list_with_time

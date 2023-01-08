@@ -1,22 +1,29 @@
 import PyPDF2
 import re
 import os
-
-
-from .utils import get_results_from_text,document_check
-from .sleep_detection import detect_sleep
-from .statistics import ExamStatistics
+from ._text_reading import get_results_from_text,document_check
+from ._sleep_detection import detect_sleep
+from ._statistics import ExamStatistics
 import pdf2image
-from .ocr import get_results_from_image, get_attributes,image_check
-from .exceptions import ExamNotFoundException
+from ._image_reading import get_results_from_image, get_attributes,image_check
+from ._exceptions import ExamNotFoundException,InvalidFileTypeException
 import PIL
 import numpy as np
+import pytesseract
 import pandas as pd
 import urllib
 
 
 
 class Exam:
+    '''
+    Exam abstract class which attributes will be inherited by ExamFromText and ExamFromImage
+    :param scan_end_time: end time of an exam
+    :param scan_start_time: start time of an exam
+    :param results_df: data frame containing measure values from the exam
+    :param  exam_statistics: ExamStatistics object with dataframes with calculated measures as attributes
+    :param  patient: Patient object with the
+    '''
     def __init__(self, filepath):
         self.scan_end_time = ""
         self.scan_start_time = ""
@@ -35,7 +42,11 @@ class Exam:
 
 
 class ExamFromText(Exam):
-
+    '''
+    class that contains exam information that are read from pdf
+    :param filepath: path to the pdf file
+    :param reader: pdf reader from the PyPDF2 librarry
+    '''
     def __init__(self, filepath):
         self.filepath = filepath
         fhandle = open(self.filepath, 'rb')
@@ -46,28 +57,25 @@ class ExamFromText(Exam):
         super().__init__(filepath)
 
     def _set_exam_data(self):
+        '''
+        sets the values for the scan_start_time, scan_end_time and results_df attributes
+        with the text extracted from first two pages of the pdf
+        '''
         page_0 = self.reader.getPage(0)
         text_page_0 = page_0.extractText()
         text_arr_0 = text_page_0.split("\n")
 
         page_1 = self.reader.getPage(1)
         text_page_1 = page_1.extractText()
-
-        # self.doctor = text_arr_0[9].split(":")[1].strip()
-        # self.technician = text_arr_0[10].split(":")[1].strip()
-        # self.duration = text_arr_0[11].split("a:")[1].strip()
         self.scan_start_time = re.sub(r'[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]', '', text_arr_0[12].split("a:")[1].strip()).strip()
         self.scan_end_time = re.sub(r'[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]', '', text_arr_0[13].split("a:")[1].strip()).strip()
-
-        # tmp_string = text_arr_0[14]
-        # self.succesful_measurements = tmp_string.split(":")[1][0:4].strip()
-        # self.pct_succesful_measurements = tmp_string[tmp_string.find("%") - 3:tmp_string.find("%")].strip()
-
         self.results_df = get_results_from_text(text_page_1)
 
     def _set_patient(self):
+        '''
+        creates the patient object and fills the attributes with text extracted from first page of the pdf
+        '''
         patient = Patient()
-
         page_0 = self.reader.getPage(0)
         text = page_0.extractText()
         text_arr = text.split("\n")
@@ -83,21 +91,24 @@ class ExamFromText(Exam):
             patient.first_name = text_arr[1].split(":")[1].strip().split(",")[1]
             patient.patient_id = text_arr[2].split(":")[1].strip()
             patient.birth_date = text_arr[3].split(":")[1].strip()
-
         self.patient = patient
 
 
 
 
 class ExamFromImage(Exam):
-
-    def __init__(self, filepath):
+    '''
+    class that contains exam information that are read from not readable pdf using ocr
+    :param filepath: path to the pdf file
+    :param images: liost of the images extracted from the pdf file
+    '''
+    def __init__(self, filepath,popplerpath):
         self.filepath = filepath
         _, file_extension = os.path.splitext(filepath)
         # tmp solution
         if file_extension == '.pdf':
             self.images = pdf2image.convert_from_path(filepath, dpi=300,
-                                                      poppler_path=r"C:\user\src\app\poppler-22.04.0\Library\bin")
+                                                      poppler_path=popplerpath)
         else:
             img = PIL.Image.open(filepath)
             self.images = [_, np.asarray(img)]
@@ -107,12 +118,19 @@ class ExamFromImage(Exam):
         super().__init__(filepath)
 
     def _set_exam_data(self):
+        '''
+        sets the values for the scan_start_time, scan_end_time and results_df attributes
+        using images that contain first and second page of exam result
+        '''
         self.results_df = get_results_from_image(self.images[1])
         attr = get_attributes(self.images[0])
         self.scan_start_time = attr['scan_start_time']
         self.scan_end_time = attr['scan_end_time']
 
     def _set_patient(self):
+        '''
+        creates the patient object and fills the attributes with data extracted from image of first page
+        '''
         patient = Patient()
         attr = get_attributes(self.images[0])
         patient.first_name = attr['first_name']
@@ -123,11 +141,34 @@ class ExamFromImage(Exam):
 
 
 class Patient:
+    '''
+    contains information about the patient
+    :param first_name: Patient first name
+    :param last_tanme:  Patient second name
+    :param patient_id: Patient ID
+    :param birrthdate: Patient birthdate
+    '''
     first_name = ""
     last_name = ""
     patient_id = ""
     birthdate = ""
-    # sex = ""
-    # height = ""
-    # weight = ""
-    # race = ""
+
+
+def get_exam(filepath,popplerpath,tesseractpath):
+    '''
+    checks if text can be extracted from the pdf and creates adequate exam object
+    :param filepath: path to the pdf file
+    :param popplerpath: path to the poppler exe file
+    :return: ExamFromText or ExamFromImage object
+    '''
+    _, file_extension = os.path.splitext(filepath)
+    if file_extension == ".pdf":
+        fhandle = open(filepath, 'rb')
+        reader = PyPDF2.PdfFileReader(fhandle)
+        if reader.getPage(0).extract_text():
+            return ExamFromText(filepath)
+        else:
+            pytesseract.pytesseract.tesseract_cmd = tesseractpath
+            return ExamFromImage(filepath,popplerpath)
+    else:
+        raise InvalidFileTypeException()

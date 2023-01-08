@@ -6,8 +6,12 @@ def find_lows(values, times, lag=4, threshold=1, influence=0):
     '''
     finds low fragments of a signal
     https://stackoverflow.com/questions/22583391/peak-signal-detection-in-realtime-timeseries-data/22640362#22640362
-
-    return: array consisting of 1s and 0s where 1 indicate low areas
+    :param values: array of values on which sleep will be detected
+    :param times: time column as datetime.datetime
+    :param lag: lag of the moving window
+    :param threshold: the z-score at which the algorithm signals
+    :param influence: the influence (between 0 and 1) of new signals on the mean and standard deviation
+    :return: array consisting of 1s and 0s where 1 indicate low areas
     '''
 
 

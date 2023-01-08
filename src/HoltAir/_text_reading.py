@@ -1,7 +1,6 @@
 import pandas as pd
 import re
-import datetime
-from .exceptions import ExamNotFoundException
+from ._exceptions import ExamNotFoundException
 
 def get_results_from_text(text: str) -> pd.DataFrame:
     '''
@@ -45,17 +44,6 @@ def get_results_from_text(text: str) -> pd.DataFrame:
 
     return df
 
-
-# metoda zmieniającą rodzaj kolumny czasu na datetime z datą 01.01.1900 i 02.01.1900 jeżeli następuje w badaniu nowy dzień
-def transform_to_time(column):
-    list_with_time = pd.to_datetime(column,format='%H:%M').tolist()
-    days_to_add = datetime.timedelta(days=0)
-    for i in range(len(list_with_time)):
-        if list_with_time[i] < list_with_time[i-1]:
-            days_to_add = datetime.timedelta(days=1)
-        newtime = list_with_time[i] + days_to_add
-        list_with_time[i] = newtime.to_pydatetime()
-    return list_with_time
 
 def document_check(page0_text,page1_text):
     if re.search('Informacje o pacjencie',page0_text) is None or re.search('ZESTAWIENIE DANYCH SUROWYCH',page1_text) is None:

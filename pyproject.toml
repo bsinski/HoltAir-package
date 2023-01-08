@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling","PyPDF2","hatchling","pdf2image","Pillow","numpy","pytesseract","pandas","opencv-python","nltk","scikit-learn","imutils","homoglyphs"]
+build-backend = "hatchling.build"
+[project]
+name = "holtair"
+version = "0.0.3"
+authors = [
+  { name="Bartosz Siński", email="author@example.com" },
+]
+description = "Package for reading data from Holter blood pressure test results."
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/pypa/sampleproject"
+"Bug Tracker" = "https://github.com/pypa/sampleproject/issues"
