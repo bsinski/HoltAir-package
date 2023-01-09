@@ -220,8 +220,14 @@ def clear_output_11psm(df_in):
     else:
         times = df_test.iloc[:, 0].dropna().tolist()
     df_test.drop(columns=df_test.columns[0], axis=1, inplace=True)
-    if 'Czas' in df_test:
-        df_test.drop(columns='Czas', axis=1, inplace=True)
+    i = 0
+    n = len(df_test.columns)
+    while i < n:
+        if nltk.edit_distance(df_test.columns[i], 'Czas') <= 2:
+            df_test = df_test.drop(columns=df_test.columns[i], axis=1)
+            n -= 1
+            continue
+        i += 1
     df_test = df_test.dropna(axis=0, how='all')
     # creating column with valida time values
     for t in times:
@@ -260,6 +266,7 @@ def clear_output_11psm(df_in):
             if len(str(df.iat[i,j])) < 2 or len(str(df.iat[i,j])) > 3:
                 raise InvalidNumericValueException
     df["Czas"] = df['Czas'].replace(";", ":", regex = True)
+    return df.dropna(axis=0, how='all')
 
 
 def clear_output_6psm(df_in, part_num):

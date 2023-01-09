@@ -49,12 +49,12 @@ class ExamFromText(Exam):
     '''
     def __init__(self, filepath):
         self.filepath = filepath
-        fhandle = open(self.filepath, 'rb')
-        self.reader = PyPDF2.PdfFileReader(fhandle)
-        if self.reader.numPages < 2:
-            raise ExamNotFoundException()
-        document_check(self.reader.getPage(0).extract_text(), self.reader.getPage(1).extract_text())
-        super().__init__(filepath)
+        with open(self.filepath, "rb") as f:
+            self.reader = PyPDF2.PdfFileReader(f, "rb")
+            if self.reader.numPages < 2:
+                raise ExamNotFoundException()
+            document_check(self.reader.getPage(0).extract_text(), self.reader.getPage(1).extract_text())
+            super().__init__(filepath)
 
     def _set_exam_data(self):
         '''
@@ -163,12 +163,11 @@ def get_exam(filepath,popplerpath,tesseractpath):
     '''
     _, file_extension = os.path.splitext(filepath)
     if file_extension == ".pdf":
-        fhandle = open(filepath, 'rb')
-        reader = PyPDF2.PdfFileReader(fhandle)
-        if reader.getPage(0).extract_text():
-            return ExamFromText(filepath)
-        else:
-            pytesseract.pytesseract.tesseract_cmd = tesseractpath
-            return ExamFromImage(filepath,popplerpath)
+        with open(filepath, "rb") as f:
+            reader = PyPDF2.PdfFileReader(f, "rb")
+            if reader.getPage(0).extract_text():
+                return ExamFromText(filepath)
+            else:
+                return ExamFromImage(filepath)
     else:
         raise InvalidFileTypeException()
